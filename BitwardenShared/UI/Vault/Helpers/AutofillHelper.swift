@@ -245,7 +245,7 @@ class AutofillHelper {
     ) {
         let alert = Alert(
             title: Localizations.autofillSaveWebsiteTitle(host),
-            message: Localizations.autofillSaveWebsiteMessage(host),
+            message: "\(cipherListView.name)\n\n\(Localizations.autofillSaveWebsiteMessage(host))",
             preferredStyle: .alert,
         )
         alert.add(AlertAction(title: Localizations.autofillAndSaveWebsite, style: .default) { _ in
