@@ -537,10 +537,11 @@ class VaultAutofillListProcessor: StateProcessor<// swiftlint:disable:this type_
                 }
                 await handleCipherForTextAutofill(cipher: cipher)
             } else {
+                let canSaveWebsite = credentialProviderExtensionDelegate != nil
+                    && (autofillListMode == .passwords || autofillListMode == .combinedMultipleSections)
                 await autofillHelper.handleCipherForAutofill(
                     cipherListView: cipher,
-                    offerSaveForURI: credentialProviderExtensionDelegate?.autofillListMode == .passwords
-                        ? appExtensionDelegate?.uri : nil,
+                    offerSaveForURI: canSaveWebsite ? appExtensionDelegate?.uri : nil,
                 ) { [weak self] toastText in
                     self?.state.toast = Toast(title: toastText)
                 }

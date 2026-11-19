@@ -1,3 +1,4 @@
+import AuthenticationServices
 import BitwardenKit
 import BitwardenKitMocks
 import BitwardenResources
@@ -200,5 +201,30 @@ struct AutofillSaveWebsiteTests {
         #expect(alert == .masterPasswordPrompt { _ in })
         #expect(vaultRepository.updateCipherCiphers.isEmpty)
         #expect(appExtensionDelegate.didCompleteAutofillRequestUsername == nil)
+    }
+
+    @Test(arguments: [false, true])
+    @available(iOS 17.0, *)
+    func passwordSelectionOffersSaveFromCredentialPicker(combinedPicker: Bool) async throws {
+        let delegate = MockCredentialProviderExtensionDelegate()
+        delegate.uri = "https://example.com"
+        let identifiers = [ASCredentialServiceIdentifier(identifier: "example.com", type: .domain)]
+        delegate.extensionMode = combinedPicker
+            ? .autofillFido2VaultList(identifiers, MockPasskeyCredentialRequestParameters())
+            : .autofillVaultList(identifiers)
+        let processor = VaultAutofillListProcessor(
+            appExtensionDelegate: delegate,
+            coordinator: coordinator.asAnyCoordinator(),
+            services: ServiceContainer.withMocks(
+                stateService: stateService,
+                vaultRepository: vaultRepository,
+            ),
+            state: VaultAutofillListState(),
+        )
+        let item = try #require(VaultListItem(cipherListView: .fixture(id: "1")))
+        await processor.perform(.vaultItemTapped(item))
+        let alert = try #require(coordinator.alertShown.last)
+        #expect(alert.title == Localizations.autofillSaveWebsiteTitle("example.com"))
+        #expect(delegate.didCompleteAutofillRequestUsername == nil)
     }
 }
