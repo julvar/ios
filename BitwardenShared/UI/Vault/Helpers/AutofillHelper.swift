@@ -287,15 +287,22 @@ class AutofillHelper {
         do {
             guard try await services.stateService.getActiveAccountId() == accountId,
                   let id = cipherListView.id,
-                  var cipher = try await services.vaultRepository.fetchCipher(withId: id),
+                  let cipher = try await services.vaultRepository.fetchCipher(withId: id),
                   cipher.edit,
-                  var login = cipher.login else {
+                  let login = cipher.login else {
                 throw BitwardenError.dataError("Login unavailable when saving an autofill website.")
             }
             if !(login.uris ?? []).contains(where: { $0.uri == uri }) {
-                login.uris = (login.uris ?? []) + [LoginUriView(uri: uri, match: nil, uriChecksum: nil)]
-                cipher.login = login
-                try await services.vaultRepository.updateCipher(cipher)
+                let updatedLogin = LoginView(
+                    username: login.username,
+                    password: login.password,
+                    passwordRevisionDate: login.passwordRevisionDate,
+                    uris: (login.uris ?? []) + [LoginUriView(uri: uri, match: nil, uriChecksum: nil)],
+                    totp: login.totp,
+                    autofillOnPageLoad: login.autofillOnPageLoad,
+                    fido2Credentials: login.fido2Credentials,
+                )
+                try await services.vaultRepository.updateCipher(cipher.update(login: updatedLogin))
             }
             coordinator.hideLoadingOverlay()
             await fillForAccount(
