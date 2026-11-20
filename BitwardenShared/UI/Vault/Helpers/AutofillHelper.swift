@@ -293,7 +293,7 @@ class AutofillHelper {
                 throw BitwardenError.dataError("Login unavailable when saving an autofill website.")
             }
             if !(login.uris ?? []).contains(where: { $0.uri == uri }) {
-                let updatedLogin = LoginView(
+                let updatedLogin = BitwardenSdk.LoginView(
                     username: login.username,
                     password: login.password,
                     passwordRevisionDate: login.passwordRevisionDate,
