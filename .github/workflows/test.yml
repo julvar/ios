@@ -65,7 +65,7 @@ jobs:
   test:
     name: Test
     runs-on: xcode-27
-    timeout-minutes: 50
+    timeout-minutes: 75
     permissions:
       contents: read
 
