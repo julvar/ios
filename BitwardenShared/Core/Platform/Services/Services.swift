@@ -59,6 +59,7 @@ typealias Services = HasAPIService
     & HasServerCommunicationConfigAPIService
     & HasServerCommunicationConfigClientSingleton
     & HasSettingsRepository
+    & HasSettingsService
     & HasSharedTimeoutService
     & HasStateService
     & HasStorefrontService
@@ -401,6 +402,13 @@ public protocol HasServerCommunicationConfigAPIService {
 protocol HasSettingsRepository {
     /// The repository used by the application to manage data and services access for the UI layer.
     var settingsRepository: SettingsRepository { get }
+}
+
+/// Protocol for an object that provides a `SettingsService`.
+///
+protocol HasSettingsService {
+    /// The service used to retrieve the account's equivalent domains.
+    var settingsService: SettingsService { get }
 }
 
 /// Protocol for an object that provides a `StateService`.

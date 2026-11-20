@@ -187,6 +187,9 @@ public class ServiceContainer: Services { // swiftlint:disable:this type_body_le
     /// The repository used by the application to manage data for the UI layer.
     let settingsRepository: SettingsRepository
 
+    /// The service used to retrieve the account's equivalent domains.
+    let settingsService: SettingsService
+
     /// The service that manages account timeout between apps.
     public let sharedTimeoutService: SharedTimeoutService
 
@@ -307,6 +310,7 @@ public class ServiceContainer: Services { // swiftlint:disable:this type_body_le
     ///   - serverCommunicationConfigClientSingleton: The lazily-initialized, cached holder for a
     ///   `ServerCommunicationConfigClientProtocol` instance.
     ///   - settingsRepository: The repository used by the application to manage data for the UI layer.
+    ///   - settingsService: The service used to retrieve equivalent domains for URI matching.
     ///   - sharedTimeoutService: The service that manages account timeout between apps.
     ///   - stateService: The service used by the application to manage account state.
     ///   - storefrontService: The service used by the application to retrieve App Store storefront information.
@@ -381,6 +385,7 @@ public class ServiceContainer: Services { // swiftlint:disable:this type_body_le
         serverCommunicationConfigAPIService: ServerCommunicationConfigAPIService,
         serverCommunicationConfigClientSingleton: ServerCommunicationConfigClientSingleton,
         settingsRepository: SettingsRepository,
+        settingsService: SettingsService,
         sharedTimeoutService: SharedTimeoutService,
         stateService: StateService,
         storefrontService: StorefrontService,
@@ -453,6 +458,7 @@ public class ServiceContainer: Services { // swiftlint:disable:this type_body_le
         self.serverCommunicationConfigAPIService = serverCommunicationConfigAPIService
         self.serverCommunicationConfigClientSingleton = serverCommunicationConfigClientSingleton
         self.settingsRepository = settingsRepository
+        self.settingsService = settingsService
         self.sharedTimeoutService = sharedTimeoutService
         self.stateService = stateService
         self.storefrontService = storefrontService
@@ -1236,6 +1242,7 @@ public class ServiceContainer: Services { // swiftlint:disable:this type_body_le
             serverCommunicationConfigAPIService: serverCommunicationConfigAPIService,
             serverCommunicationConfigClientSingleton: serverCommunicationConfigClientSingleton,
             settingsRepository: settingsRepository,
+            settingsService: settingsService,
             sharedTimeoutService: sharedTimeoutService,
             stateService: stateService,
             storefrontService: storefrontService,
