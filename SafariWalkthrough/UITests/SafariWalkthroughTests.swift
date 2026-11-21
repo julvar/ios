@@ -77,7 +77,8 @@ final class SafariWalkthroughTests: XCTestCase {
         XCTAssertEqual(before["savedURIs"] as? [String], ["https://old.example.invalid"])
         try tap("Autofill Only")
         try await assertFilled()
-        XCTAssertEqual(eventTypes(try await api("state")).filter { $0 == "save-start" }.count, 1)
+        let afterExplicitFill = try await api("state")
+        XCTAssertEqual(eventTypes(afterExplicitFill).filter { $0 == "save-start" }.count, 1)
     }
 
     func testSaveFailureCancelDoesNotFill() async throws {
