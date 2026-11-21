@@ -126,97 +126,88 @@ final class WalkthroughProvider: ASCredentialProviderViewController {
     }
 
     private func showFixture(_ identifiers: [ASCredentialServiceIdentifier]) {
-        Task { @MainActor in
-            do {
-                let config = try await WalkthroughAPI.call("state")
-                let identifier = identifiers.first?.identifier ?? "127.0.0.1"
-                let uri = identifier.contains("://") ? identifier : "https://" + identifier
-                let mode = config["mode"] as? String ?? "success"
-                var uris = config["savedURIs"] as? [String] ?? []
-                if mode == "matching" { uris = [uri] }
-                let loginURIs = uris.map { LoginUriView(uri: $0, match: nil, uriChecksum: nil) }
-                let repository = WalkthroughRepository()
-                repository.fetchCipherResult = .success(.fixture(
-                    edit: mode != "readonly",
-                    login: .fixture(
-                        password: "Disposable-Only-42!",
-                        uris: loginURIs,
-                        username: "safari-fixture@example.invalid"
-                    ),
-                    name: "Safari disposable login"
-                ))
-                let stateService = MockStateService()
-                stateService.activeAccount = .fixture()
-                let services = ServiceContainer.withMocks(
-                    stateService: stateService,
-                    vaultRepository: repository
-                )
-                let delegate = WalkthroughDelegate()
-                delegate.provider = self
-                delegate.uri = uri
-                delegate.extensionMode = .autofillVaultList(identifiers)
-                delegate.isInAppExtension = true
-                let coordinator = WalkthroughCoordinator()
-                let navigation = UINavigationController()
-                coordinator.stackNavigator = navigation
-                coordinator.delegate = delegate
-                let cipher = CipherListView.fixture(
-                    name: "Safari disposable login",
-                    subtitle: "safari-fixture@example.invalid",
-                    type: .login(.fixture(uris: loginURIs)),
-                    edit: mode != "readonly"
-                )
-                guard let item = VaultListItem(cipherListView: cipher) else {
-                    throw NSError(domain: "DisposableWalkthrough", code: 1)
-                }
-                var state = VaultAutofillListState()
-                state.loadingState = .data([VaultListSection(id: "fixture", items: [item], name: "Disposable vault")])
-                state.showWebIcons = false
-                let production = VaultAutofillListProcessor(
-                    appExtensionDelegate: delegate,
-                    coordinator: coordinator.asAnyCoordinator(),
-                    services: services,
-                    state: state
-                )
-                let picker = WalkthroughPicker(production: production, state: state)
-                let view = VaultAutofillListView(
-                    store: Store(processor: picker),
-                    timeProvider: CurrentTime()
-                )
-                let host = UIHostingController(rootView: view)
-                navigation.setViewControllers([host], animated: false)
-                addChild(navigation)
-                navigation.view.frame = self.view.bounds
-                navigation.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-                self.view.addSubview(navigation.view)
-                navigation.didMove(toParent: self)
-                let content = VaultAutofillListView(
-                    store: Store(processor: picker),
-                    timeProvider: services.timeProvider
-                )
-                let hosting = UIHostingController(rootView: content)
-                navigation.setViewControllers([hosting], animated: false)
-                addChild(navigation)
-                view.addSubview(navigation.view)
-                navigation.view.translatesAutoresizingMaskIntoConstraints = false
-                NSLayoutConstraint.activate([
-                    navigation.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-                    navigation.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-                    navigation.view.topAnchor.constraint(equalTo: view.topAnchor),
-                    navigation.view.bottomAnchor.constraint(equalTo: view.bottomAnchor)
-                ])
-                navigation.didMove(toParent: self)
-                self.delegate = delegate
-                self.coordinator = coordinator
-                self.picker = picker
-                self.navigation = navigation
-            } catch {
-                let alert = UIAlertController(title: "Fixture setup failed", message: error.localizedDescription, preferredStyle: .alert)
-                alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { _ in
-                    self.extensionContext.cancelRequest(withError: error)
-                })
-                present(alert, animated: true)
+        Task { await loadFixture(identifiers) }
+    }
+
+    private func loadFixture(_ identifiers: [ASCredentialServiceIdentifier]) async {
+        do {
+            let config = try await WalkthroughAPI.call("state")
+            let identifier = identifiers.first?.identifier ?? "127.0.0.1"
+            let uri = identifier.contains("://") ? identifier : "https://" + identifier
+            let mode = config["mode"] as? String ?? "success"
+            var uris = config["savedURIs"] as? [String] ?? []
+            if mode == "matching" { uris = [uri] }
+            let loginURIs = uris.map { LoginUriView(uri: $0, match: nil, uriChecksum: nil) }
+            let repository = WalkthroughRepository()
+            repository.fetchCipherResult = .success(.fixture(
+                edit: mode != "readonly",
+                login: .fixture(
+                    password: "Disposable-Only-42!",
+                    uris: loginURIs,
+                    username: "safari-fixture@example.invalid"
+                ),
+                name: "Safari disposable login"
+            ))
+            let stateService = MockStateService()
+            stateService.activeAccount = .fixture()
+            let services = ServiceContainer.withMocks(
+                stateService: stateService,
+                vaultRepository: repository
+            )
+            let delegate = WalkthroughDelegate()
+            delegate.provider = self
+            delegate.uri = uri
+            delegate.extensionMode = .autofillVaultList(identifiers)
+            delegate.isInAppExtension = true
+            let coordinator = WalkthroughCoordinator()
+            let navigation = UINavigationController()
+            coordinator.stackNavigator = navigation
+            coordinator.delegate = delegate
+            let cipher = CipherListView.fixture(
+                name: "Safari disposable login",
+                subtitle: "safari-fixture@example.invalid",
+                type: .login(.fixture(uris: loginURIs)),
+                edit: mode != "readonly"
+            )
+            guard let item = VaultListItem(cipherListView: cipher) else {
+                throw NSError(domain: "DisposableWalkthrough", code: 1)
             }
+            var state = VaultAutofillListState()
+            state.loadingState = .data([VaultListSection(id: "fixture", items: [item], name: "Disposable vault")])
+            state.showWebIcons = false
+            let production = VaultAutofillListProcessor(
+                appExtensionDelegate: delegate,
+                coordinator: coordinator.asAnyCoordinator(),
+                services: services,
+                state: state
+            )
+            let picker = WalkthroughPicker(production: production, state: state)
+            let content = VaultAutofillListView(
+                store: Store(processor: picker),
+                timeProvider: services.timeProvider
+            )
+            let hosting = UIHostingController(rootView: content)
+            navigation.setViewControllers([hosting], animated: false)
+            addChild(navigation)
+            self.view.addSubview(navigation.view)
+            navigation.view.translatesAutoresizingMaskIntoConstraints = false
+            NSLayoutConstraint.activate([
+                navigation.view.leadingAnchor.constraint(equalTo: self.view.leadingAnchor),
+                navigation.view.trailingAnchor.constraint(equalTo: self.view.trailingAnchor),
+                navigation.view.topAnchor.constraint(equalTo: self.view.topAnchor),
+                navigation.view.bottomAnchor.constraint(equalTo: self.view.bottomAnchor)
+            ])
+            navigation.didMove(toParent: self)
+            self.delegate = delegate
+            self.coordinator = coordinator
+            self.picker = picker
+            self.navigation = navigation
+        } catch {
+            let alert = UIAlertController(title: "Fixture setup failed", message: error.localizedDescription, preferredStyle: .alert)
+            alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { _ in
+                self.extensionContext.cancelRequest(withError: error)
+            })
+            present(alert, animated: true)
         }
     }
 }
