@@ -1,0 +1,109 @@
+name: Safari Autofill Walkthrough
+on:
+  push:
+    branches: [test/safari-autofill-walkthrough]
+  workflow_dispatch:
+permissions:
+  contents: read
+env:
+  MINT_LINK_PATH: .mint/bin
+  MINT_PATH: .mint/lib
+jobs:
+  safari:
+    name: Disposable Safari integration
+    runs-on: xcode-27
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/macos-runner-tuneup
+      - name: Read simulator configuration
+        run: |
+          echo "_XCODE_VERSION=$(cat .xcode-version)" >> "$GITHUB_ENV"
+          echo "_SIMULATOR_NAME=$(cat .test-simulator-device-name)" >> "$GITHUB_ENV"
+          echo "_SIMULATOR_VERSION=$(cat .test-simulator-ios-version)" >> "$GITHUB_ENV"
+      - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90
+        with:
+          xcode-version: ${{ env._XCODE_VERSION }}
+      - uses: ruby/setup-ruby@12fd324f1d0b43274fdc8130f6980590a667c455
+        with:
+          bundler-cache: true
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        id: mint
+        with:
+          path: .mint
+          key: ${{ runner.os }}-safari-mint-${{ hashFiles('**/Mintfile') }}
+          restore-keys: |
+            ${{ runner.os }}-mint-
+      - name: Bootstrap and generate isolated walkthrough project
+        run: |
+          ./Scripts/update_test_local_config.sh ""
+          brew update
+          brew bundle
+          ./Scripts/bootstrap.sh
+          mint run xcodegen generate --spec project-safari-walkthrough.yml
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        if: steps.mint.outputs.cache-hit != 'true'
+        with:
+          path: .mint
+          key: ${{ runner.os }}-safari-mint-${{ hashFiles('**/Mintfile') }}
+      - uses: ./.github/actions/boot-simulator
+        id: simulator
+        with:
+          simulator-name: ${{ env._SIMULATOR_NAME }}
+          simulator-version: ${{ env._SIMULATOR_VERSION }}
+      - name: Start disposable fixture page and store
+        run: |
+          mkdir -p build/safari-evidence
+          python3 -m py_compile SafariWalkthrough/fixture_server.py
+          python3 SafariWalkthrough/fixture_server.py > build/safari-evidence/server.log 2>&1 &
+          echo $! > build/safari-server.pid
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:8765/state; then break; fi
+            sleep 1
+          done
+          curl --fail --silent http://127.0.0.1:8765/state
+          defaults write com.apple.iphonesimulator ConnectHardwareKeyboard -bool NO
+          xcrun simctl ui "${{ steps.simulator.outputs.simulator-id }}" appearance light
+      - name: Build the fixture host, provider and UI tests
+        run: |
+          set -o pipefail
+          xcrun xcodebuild build-for-testing \
+            -workspace Bitwarden.xcworkspace -scheme SafariWalkthrough -configuration Debug \
+            -destination "platform=iOS Simulator,id=${{ steps.simulator.outputs.simulator-id }}" \
+            -derivedDataPath build/SafariDerivedData \
+            -resultBundlePath build/safari-build.xcresult \
+            -skipPackagePluginValidation -skipMacroValidation -quiet \
+            2>&1 | tee build/safari-evidence/build.log
+      - name: Exercise the actual Safari credential handoff
+        run: |
+          set -o pipefail
+          xcrun xcodebuild test-without-building \
+            -workspace Bitwarden.xcworkspace -scheme SafariWalkthrough -configuration Debug \
+            -destination "platform=iOS Simulator,id=${{ steps.simulator.outputs.simulator-id }}" \
+            -derivedDataPath build/SafariDerivedData \
+            -resultBundlePath build/safari-tests.xcresult \
+            -parallel-testing-enabled NO -test-timeouts-enabled YES \
+            -maximum-test-execution-time-allowance 120 -collect-test-diagnostics never \
+            2>&1 | tee build/safari-evidence/tests.log
+      - name: Collect screenshots and results
+        if: always()
+        run: |
+          mkdir -p build/safari-evidence
+          curl --silent http://127.0.0.1:8765/state > build/safari-evidence/last-fixture-state.json || true
+          xcrun simctl io "${{ steps.simulator.outputs.simulator-id }}" screenshot build/safari-evidence/final-screen.png || true
+          if [ -d build/safari-tests.xcresult ]; then
+            xcrun xcresulttool export attachments --path build/safari-tests.xcresult --output-path build/safari-evidence/attachments || true
+            xcrun xcresulttool get test-results summary --path build/safari-tests.xcresult > build/safari-evidence/summary.json || true
+          fi
+          if [ -f build/safari-server.pid ]; then kill "$(cat build/safari-server.pid)" || true; fi
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        if: always()
+        with:
+          name: safari-walkthrough-evidence
+          retention-days: 7
+          path: |
+            build/safari-evidence
+            build/safari-tests.xcresult
+            build/safari-build.xcresult

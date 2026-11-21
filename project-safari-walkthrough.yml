@@ -1,0 +1,126 @@
+# Explicitly generated only for the disposable simulator walkthrough.
+# No fixture app, extension or test code is added to the production project.
+name: Bitwarden
+include:
+  - path: project-pm.yml
+schemes:
+  SafariWalkthrough:
+    build:
+      targets:
+        SafariWalkthrough: all
+        SafariWalkthroughUITests: [test]
+    test:
+      language: en
+      region: US
+      targets:
+        - SafariWalkthroughUITests
+      environmentVariables:
+        TZ: UTC
+targets:
+  SafariWalkthrough:
+    type: application
+    platform: iOS
+    deploymentTarget: "18.0"
+    sources:
+      - path: SafariWalkthrough/Host
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: org.bitwarden.disposable.safariwalkthrough
+        PRODUCT_NAME: SafariWalkthrough
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Bitwarden Walkthrough
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        CODE_SIGN_ENTITLEMENTS: SafariWalkthrough/Walkthrough.entitlements
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGNING_ALLOWED: YES
+        ENABLE_TESTING_SEARCH_PATHS: YES
+        LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/Frameworks $(PLATFORM_DIR)/Developer/Library/Frameworks $(PLATFORM_DIR)/Developer/usr/lib"
+    info:
+      path: SafariWalkthrough/Host/Info.plist
+      properties:
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
+    dependencies:
+      - target: SafariWalkthroughProvider
+      - target: BitwardenShared
+      - target: BitwardenSharedMocks
+      - target: BitwardenKit/AuthenticatorBridgeKitMocks
+      - target: BitwardenKit/BitwardenKit
+      - target: BitwardenKit/BitwardenKitMocks
+      - target: BitwardenKit/BitwardenSdkMocks
+      - target: BitwardenKit/TestHelpers
+      - target: BitwardenKit/Networking
+      - package: BitwardenSdk
+      - package: SnapshotTesting
+      - package: SnapshotTesting
+        product: InlineSnapshotTesting
+
+  SafariWalkthroughProvider:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "18.0"
+    sources:
+      - path: SafariWalkthrough/Provider
+      - path: BitwardenShared
+        includes:
+          - "**/TestHelpers/*.swift"
+      - path: GlobalTestHelpers
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: org.bitwarden.disposable.safariwalkthrough.provider
+        PRODUCT_MODULE_NAME: SafariWalkthroughProvider
+        PRODUCT_NAME: SafariWalkthroughProvider
+        INFOPLIST_KEY_CFBundleDisplayName: Bitwarden Walkthrough
+        CODE_SIGN_ENTITLEMENTS: SafariWalkthrough/Walkthrough.entitlements
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGNING_ALLOWED: YES
+        APPLICATION_EXTENSION_API_ONLY: NO
+        ENABLE_TESTING_SEARCH_PATHS: YES
+        LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks $(PLATFORM_DIR)/Developer/Library/Frameworks $(PLATFORM_DIR)/Developer/usr/lib"
+    info:
+      path: SafariWalkthrough/Provider/Info.plist
+      properties:
+        CFBundleDisplayName: Bitwarden Walkthrough
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.authentication-services-credential-provider-ui
+          NSExtensionPrincipalClass: "$(PRODUCT_MODULE_NAME).WalkthroughProvider"
+          NSExtensionAttributes:
+            ASCredentialProviderExtensionCapabilities:
+              ProvidesPasswords: true
+              ProvidesPasskeys: false
+              ShowsConfigurationUI: false
+            ASCredentialProviderExtensionShowsConfigurationUI: false
+    dependencies:
+      - target: BitwardenShared
+      - target: BitwardenSharedMocks
+      - target: BitwardenKit/AuthenticatorBridgeKitMocks
+      - target: BitwardenKit/BitwardenKit
+      - target: BitwardenKit/BitwardenKitMocks
+      - target: BitwardenKit/BitwardenSdkMocks
+      - target: BitwardenKit/TestHelpers
+      - target: BitwardenKit/Networking
+      - package: BitwardenSdk
+      - package: SnapshotTesting
+      - package: SnapshotTesting
+        product: InlineSnapshotTesting
+
+  SafariWalkthroughUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    deploymentTarget: "18.0"
+    sources:
+      - path: SafariWalkthrough/UITests
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: org.bitwarden.disposable.safariwalkthrough.uitests
+        TEST_TARGET_NAME: SafariWalkthrough
+        GENERATE_INFOPLIST_FILE: YES
+    info:
+      path: SafariWalkthrough/UITests/Info.plist
+      properties:
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
+    dependencies:
+      - target: SafariWalkthrough
