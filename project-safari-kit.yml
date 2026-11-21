@@ -7,9 +7,9 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: org.bitwarden.disposable.bitwardensdkmocks
-        INFOPLIST_FILE: SafariWalkthrough/Support/BitwardenSdkMocks-Info.plist
+        INFOPLIST_FILE: BitwardenSdkMocks/Info.plist
     info:
-      path: SafariWalkthrough/Support/BitwardenSdkMocks-Info.plist
+      path: BitwardenSdkMocks/Info.plist
       properties:
         CFBundlePackageType: FMWK
         CFBundleIdentifier: "$(PRODUCT_BUNDLE_IDENTIFIER)"
@@ -19,9 +19,9 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: org.bitwarden.disposable.testhelpers
-        INFOPLIST_FILE: SafariWalkthrough/Support/TestHelpers-Info.plist
+        INFOPLIST_FILE: TestHelpers/Info.plist
     info:
-      path: SafariWalkthrough/Support/TestHelpers-Info.plist
+      path: TestHelpers/Info.plist
       properties:
         CFBundlePackageType: FMWK
         CFBundleIdentifier: "$(PRODUCT_BUNDLE_IDENTIFIER)"
@@ -31,9 +31,9 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: org.bitwarden.disposable.authenticatorbridgekitmocks
-        INFOPLIST_FILE: SafariWalkthrough/Support/AuthenticatorBridgeKitMocks-Info.plist
+        INFOPLIST_FILE: AuthenticatorBridgeKit/MocksInfo.plist
     info:
-      path: SafariWalkthrough/Support/AuthenticatorBridgeKitMocks-Info.plist
+      path: AuthenticatorBridgeKit/MocksInfo.plist
       properties:
         CFBundlePackageType: FMWK
         CFBundleIdentifier: "$(PRODUCT_BUNDLE_IDENTIFIER)"
@@ -43,9 +43,9 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: org.bitwarden.disposable.bitwardenkitmocks
-        INFOPLIST_FILE: SafariWalkthrough/Support/BitwardenKitMocks-Info.plist
+        INFOPLIST_FILE: BitwardenKit/Application/Mocks/Support/Info.plist
     info:
-      path: SafariWalkthrough/Support/BitwardenKitMocks-Info.plist
+      path: BitwardenKit/Application/Mocks/Support/Info.plist
       properties:
         CFBundlePackageType: FMWK
         CFBundleIdentifier: "$(PRODUCT_BUNDLE_IDENTIFIER)"
