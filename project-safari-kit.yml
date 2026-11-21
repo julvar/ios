@@ -1,0 +1,53 @@
+# Simulator-only metadata overlay for embedded test support frameworks.
+name: BitwardenKit
+include:
+  - path: project-bwk.yml
+targets:
+  BitwardenSdkMocks:
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: org.bitwarden.disposable.bitwardensdkmocks
+        INFOPLIST_FILE: SafariWalkthrough/Support/BitwardenSdkMocks-Info.plist
+    info:
+      path: SafariWalkthrough/Support/BitwardenSdkMocks-Info.plist
+      properties:
+        CFBundlePackageType: FMWK
+        CFBundleIdentifier: "$(PRODUCT_BUNDLE_IDENTIFIER)"
+        CFBundleShortVersionString: "1.0"
+        CFBundleVersion: "1"
+  TestHelpers:
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: org.bitwarden.disposable.testhelpers
+        INFOPLIST_FILE: SafariWalkthrough/Support/TestHelpers-Info.plist
+    info:
+      path: SafariWalkthrough/Support/TestHelpers-Info.plist
+      properties:
+        CFBundlePackageType: FMWK
+        CFBundleIdentifier: "$(PRODUCT_BUNDLE_IDENTIFIER)"
+        CFBundleShortVersionString: "1.0"
+        CFBundleVersion: "1"
+  AuthenticatorBridgeKitMocks:
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: org.bitwarden.disposable.authenticatorbridgekitmocks
+        INFOPLIST_FILE: SafariWalkthrough/Support/AuthenticatorBridgeKitMocks-Info.plist
+    info:
+      path: SafariWalkthrough/Support/AuthenticatorBridgeKitMocks-Info.plist
+      properties:
+        CFBundlePackageType: FMWK
+        CFBundleIdentifier: "$(PRODUCT_BUNDLE_IDENTIFIER)"
+        CFBundleShortVersionString: "1.0"
+        CFBundleVersion: "1"
+  BitwardenKitMocks:
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: org.bitwarden.disposable.bitwardenkitmocks
+        INFOPLIST_FILE: SafariWalkthrough/Support/BitwardenKitMocks-Info.plist
+    info:
+      path: SafariWalkthrough/Support/BitwardenKitMocks-Info.plist
+      properties:
+        CFBundlePackageType: FMWK
+        CFBundleIdentifier: "$(PRODUCT_BUNDLE_IDENTIFIER)"
+        CFBundleShortVersionString: "1.0"
+        CFBundleVersion: "1"

@@ -124,3 +124,9 @@ targets:
           NSAllowsArbitraryLoads: true
     dependencies:
       - target: SafariWalkthrough
+
+  # These normally test-only frameworks are embedded by this disposable app.
+  BitwardenSharedMocks:
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: org.bitwarden.disposable.sharedmocks
