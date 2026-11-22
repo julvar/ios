@@ -122,23 +122,24 @@ final class SafariWalkthroughTests: XCTestCase {
             format: "label CONTAINS[c] 'Turn On' OR label == 'Allow' OR label == 'Enable'"
         )).firstMatch
         if hostAllow.exists { hostAllow.tap() }
-        if !host.staticTexts["Test provider enabled"].waitForExistence(timeout: 3) {
-            try enableProviderThroughSettings()
+        var providerEnabled = host.staticTexts["Test provider enabled"].waitForExistence(timeout: 3)
+        if !providerEnabled {
+            providerEnabled = try enableProviderThroughSettings()
         }
         host.buttons["check-provider"].tap()
-        XCTAssertTrue(host.staticTexts["Test provider enabled"].waitForExistence(timeout: 15),
-                      "iOS must enable the disposable credential provider; do not bypass this gate")
+        print("WALKTHROUGH_PROVIDER_STORE_STATE:", host.debugDescription)
+        XCTAssertTrue(providerEnabled, "The system must enable the disposable provider before testing Safari")
         host.buttons["open-safari"].tap()
         let continueButton = safari.buttons["Continue"]
         if continueButton.waitForExistence(timeout: 2) { continueButton.tap() }
         XCTAssertTrue(safari.textFields["Username"].waitForExistence(timeout: 20))
     }
 
-    private func enableProviderThroughSettings() throws {
+    private func enableProviderThroughSettings() throws -> Bool {
         host.buttons["provider-settings"].tap()
         let settings = XCUIApplication(bundleIdentifier: "com.apple.Preferences")
         XCTAssertTrue(settings.wait(for: .runningForeground, timeout: 15), "AutoFill Settings must open")
-        print("WALKTHROUGH_SETTINGS_TREE: \\(settings.debugDescription)")
+        print("WALKTHROUGH_SETTINGS_TREE:", settings.debugDescription)
         capture("System AutoFill provider settings")
         let globalSwitch = settings.switches.matching(NSPredicate(
             format: "label CONTAINS[c] 'AutoFill Passwords'"
@@ -161,8 +162,16 @@ final class SafariWalkthroughTests: XCTestCase {
             format: "label == 'Allow' OR label CONTAINS[c] 'Turn On' OR label == 'Enable'"
         )).firstMatch
         if systemConsent.exists { systemConsent.tap() }
-        print("WALKTHROUGH_SETTINGS_AFTER: \\(settings.debugDescription)")
+        print("WALKTHROUGH_SETTINGS_AFTER:", settings.debugDescription)
+        let enabledExpectation = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "value == %@", "1"),
+            object: provider
+        )
+        let enabled = XCTWaiter.wait(for: [enabledExpectation], timeout: 5) == .completed
+        print("WALKTHROUGH_PROVIDER_SWITCH:", String(describing: provider.value))
+        XCTAssertTrue(enabled, "The real iOS provider switch must be on")
         host.activate()
+        return enabled
     }
 
     private func openPicker() throws {
