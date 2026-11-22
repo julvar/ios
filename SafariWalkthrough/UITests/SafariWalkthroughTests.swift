@@ -153,7 +153,13 @@ final class SafariWalkthroughTests: XCTestCase {
             if row.exists { row.tap() }
         }
         XCTAssertTrue(provider.waitForExistence(timeout: 5), "Disposable provider must be registered in system settings")
-        if provider.value as? String == "0" { provider.tap() }
+        // Settings exposes a row-sized switch with a second native switch inside it.
+        // Tap the actual control instead of the row center, which can leave it unchanged.
+        let nativeSwitch = provider.switches.firstMatch
+        let toggle = nativeSwitch.exists ? nativeSwitch : provider
+        print("WALKTHROUGH_NATIVE_SWITCH_BEFORE:", String(describing: toggle.value))
+        if toggle.value as? String == "0" { toggle.tap() }
+        print("WALKTHROUGH_NATIVE_SWITCH_AFTER:", String(describing: toggle.value))
         let consent = settings.buttons.matching(NSPredicate(
             format: "label == 'Allow' OR label CONTAINS[c] 'Turn On' OR label == 'Enable'"
         )).firstMatch
