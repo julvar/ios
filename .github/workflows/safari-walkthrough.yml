@@ -98,6 +98,7 @@ jobs:
             xcrun xcresulttool export attachments --path build/safari-tests.xcresult --output-path build/safari-evidence/attachments || true
             xcrun xcresulttool get test-results summary --path build/safari-tests.xcresult > build/safari-evidence/summary.json || true
           fi
+          xcrun simctl spawn "${{ steps.simulator.outputs.simulator-id }}" log show --last 20m --style compact --predicate 'process == "SafariWalkthrough" OR process == "SafariWalkthroughProvider"' > build/safari-evidence/fixture-process.log 2>&1 || true
           if [ -f build/safari-server.pid ]; then kill "$(cat build/safari-server.pid)" || true; fi
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         if: always()

@@ -16,7 +16,7 @@ final class SafariWalkthroughTests: XCTestCase {
         screenshot.name = name
         screenshot.lifetime = .keepAlways
         add(screenshot)
-        let tree = XCTAttachment(string: safari.debugDescription + "\nSPRINGBOARD\n" + springboard.debugDescription)
+        let tree = XCTAttachment(string: "HOST\n" + host.debugDescription + "\nSAFARI\n" + safari.debugDescription + "\nSPRINGBOARD\n" + springboard.debugDescription)
         tree.name = "Accessibility tree"
         tree.lifetime = .keepAlways
         add(tree)
@@ -109,7 +109,10 @@ final class SafariWalkthroughTests: XCTestCase {
     private func prepare(mode: String) async throws {
         _ = try await api("reset", body: ["mode": mode])
         host.launch()
-        XCTAssertTrue(host.buttons["enable-provider"].waitForExistence(timeout: 15))
+        let hostReady = host.buttons["enable-provider"].waitForExistence(timeout: 15)
+        print("WALKTHROUGH_HOST_STATE: \(host.state.rawValue)")
+        print("WALKTHROUGH_HOST_TREE: \(host.debugDescription)")
+        XCTAssertTrue(hostReady, "Scene-backed fixture host must display its enable button")
         host.buttons["enable-provider"].tap()
         let allow = springboard.buttons.matching(NSPredicate(
             format: "label CONTAINS[c] 'Turn On' OR label == 'Allow' OR label == 'Enable'"

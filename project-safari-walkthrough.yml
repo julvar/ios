@@ -40,6 +40,12 @@ targets:
       properties:
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: true
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+          UISceneConfigurations:
+            UIWindowSceneSessionRoleApplication:
+              - UISceneConfigurationName: Walkthrough
+                UISceneDelegateClassName: "$(PRODUCT_MODULE_NAME).WalkthroughScene"
     dependencies:
       - target: SafariWalkthroughProvider
       - target: BitwardenShared
