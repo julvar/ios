@@ -207,16 +207,8 @@ final class SafariWalkthroughTests: XCTestCase {
                 dismissKeyboardIntroduction()
                 print("WALKTHROUGH_AFTER_PROVIDER:", safari.debugDescription)
             }
-            let passwordMenu = safari.buttons.matching(NSPredicate(
-                format: "label CONTAINS[c] 'Passwords'"
-            )).firstMatch
-            if !fixtureRow.exists && passwordMenu.exists {
-                passwordMenu.tap()
-                let providerAfterIntroduction = safari.buttons["Bitwarden Walkthrough"]
-                if providerAfterIntroduction.waitForExistence(timeout: 3) {
-                    providerAfterIntroduction.tap()
-                }
-            }
+            // Provider presentation is asynchronous. Wait for its real picker below;
+            // tapping the transient Passwords menu again races extension startup.
         }
         let pickerVisible = fixtureRow.waitForExistence(timeout: 15)
         if !pickerVisible {
