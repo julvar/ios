@@ -45,7 +45,29 @@ final class WalkthroughScene: UIResponder, UIWindowSceneDelegate {
         safari.addAction(UIAction { _ in
             UIApplication.shared.open(URL(string: "http://127.0.0.1:8765/login?run=" + UUID().uuidString)!)
         }, for: .touchUpInside)
-        let stack = UIStackView(arrangedSubviews: [label, enable, safari])
+        let settings = UIButton(type: .system)
+        settings.setTitle("Open AutoFill settings", for: .normal)
+        settings.accessibilityIdentifier = "provider-settings"
+        settings.addAction(UIAction { _ in
+            if #available(iOS 26.0, *) {
+                Task { @MainActor in
+                    do { try await ASSettingsHelper.openCredentialProviderAppSettings() }
+                    catch { label.text = "Settings error: " + error.localizedDescription }
+                }
+            }
+        }, for: .touchUpInside)
+        let check = UIButton(type: .system)
+        check.setTitle("Check provider state", for: .normal)
+        check.accessibilityIdentifier = "check-provider"
+        check.addAction(UIAction { _ in
+            ASCredentialIdentityStore.shared.getState { state in
+                let enabled = state.isEnabled
+                DispatchQueue.main.async {
+                    label.text = enabled ? "Test provider enabled" : "Test provider not enabled"
+                }
+            }
+        }, for: .touchUpInside)
+        let stack = UIStackView(arrangedSubviews: [label, enable, settings, check, safari])
         stack.axis = .vertical
         stack.spacing = 24
         stack.translatesAutoresizingMaskIntoConstraints = false

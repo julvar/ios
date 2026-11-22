@@ -122,12 +122,47 @@ final class SafariWalkthroughTests: XCTestCase {
             format: "label CONTAINS[c] 'Turn On' OR label == 'Allow' OR label == 'Enable'"
         )).firstMatch
         if hostAllow.exists { hostAllow.tap() }
+        if !host.staticTexts["Test provider enabled"].waitForExistence(timeout: 3) {
+            try enableProviderThroughSettings()
+        }
+        host.buttons["check-provider"].tap()
         XCTAssertTrue(host.staticTexts["Test provider enabled"].waitForExistence(timeout: 15),
                       "iOS must enable the disposable credential provider; do not bypass this gate")
         host.buttons["open-safari"].tap()
         let continueButton = safari.buttons["Continue"]
         if continueButton.waitForExistence(timeout: 2) { continueButton.tap() }
         XCTAssertTrue(safari.textFields["Username"].waitForExistence(timeout: 20))
+    }
+
+    private func enableProviderThroughSettings() throws {
+        host.buttons["provider-settings"].tap()
+        let settings = XCUIApplication(bundleIdentifier: "com.apple.Preferences")
+        XCTAssertTrue(settings.wait(for: .runningForeground, timeout: 15), "AutoFill Settings must open")
+        print("WALKTHROUGH_SETTINGS_TREE: \\(settings.debugDescription)")
+        capture("System AutoFill provider settings")
+        let globalSwitch = settings.switches.matching(NSPredicate(
+            format: "label CONTAINS[c] 'AutoFill Passwords'"
+        )).firstMatch
+        if globalSwitch.exists && globalSwitch.value as? String == "0" { globalSwitch.tap() }
+        let provider = settings.switches.matching(NSPredicate(
+            format: "label CONTAINS[c] 'Walkthrough'"
+        )).firstMatch
+        if !provider.waitForExistence(timeout: 5) {
+            let row = settings.staticTexts["Bitwarden Walkthrough"]
+            if row.exists { row.tap() }
+        }
+        XCTAssertTrue(provider.waitForExistence(timeout: 5), "Disposable provider must be registered in system settings")
+        if provider.value as? String == "0" { provider.tap() }
+        let consent = settings.buttons.matching(NSPredicate(
+            format: "label == 'Allow' OR label CONTAINS[c] 'Turn On' OR label == 'Enable'"
+        )).firstMatch
+        if consent.waitForExistence(timeout: 2) { consent.tap() }
+        let systemConsent = springboard.buttons.matching(NSPredicate(
+            format: "label == 'Allow' OR label CONTAINS[c] 'Turn On' OR label == 'Enable'"
+        )).firstMatch
+        if systemConsent.exists { systemConsent.tap() }
+        print("WALKTHROUGH_SETTINGS_AFTER: \\(settings.debugDescription)")
+        host.activate()
     }
 
     private func openPicker() throws {
