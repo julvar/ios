@@ -184,11 +184,13 @@ final class SafariWalkthroughTests: XCTestCase {
         let field = safari.textFields["Username"]
         XCTAssertTrue(field.waitForExistence(timeout: 15))
         field.tap()
+        print("WALKTHROUGH_SAFARI_FOCUSED:", safari.debugDescription)
         let passwords = safari.buttons.matching(NSPredicate(
             format: "label CONTAINS[c] 'password' OR label == 'AutoFill'"
         )).firstMatch
         if passwords.waitForExistence(timeout: 5) {
             passwords.tap()
+            print("WALKTHROUGH_AFTER_PASSWORDS:", safari.debugDescription)
         } else {
             field.press(forDuration: 1.2)
             let autofill = safari.buttons["AutoFill"]
@@ -199,13 +201,21 @@ final class SafariWalkthroughTests: XCTestCase {
             let provider = safari.buttons.matching(NSPredicate(
                 format: "label CONTAINS[c] 'Walkthrough'"
             )).firstMatch
-            if provider.waitForExistence(timeout: 3) { provider.tap() }
+            if provider.waitForExistence(timeout: 3) {
+                provider.tap()
+                print("WALKTHROUGH_AFTER_PROVIDER:", safari.debugDescription)
+            }
             let passwordMenu = safari.buttons.matching(NSPredicate(
                 format: "label CONTAINS[c] 'Passwords'"
             )).firstMatch
             if !fixtureRow.exists && passwordMenu.exists { passwordMenu.tap() }
         }
-        XCTAssertTrue(fixtureRow.waitForExistence(timeout: 15), "The actual Safari extension picker must be visible")
+        let pickerVisible = fixtureRow.waitForExistence(timeout: 15)
+        if !pickerVisible {
+            print("WALKTHROUGH_PICKER_FAILURE_SAFARI:", safari.debugDescription)
+            print("WALKTHROUGH_PICKER_FAILURE_SPRINGBOARD:", springboard.debugDescription)
+        }
+        XCTAssertTrue(pickerVisible, "The actual Safari extension picker must be visible")
         capture("Actual Safari credential picker")
         fixtureRow.tap()
     }

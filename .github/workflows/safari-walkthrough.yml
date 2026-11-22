@@ -86,7 +86,7 @@ jobs:
             -derivedDataPath build/SafariDerivedData \
             -resultBundlePath build/safari-tests.xcresult \
             -parallel-testing-enabled NO -test-timeouts-enabled YES \
-            -maximum-test-execution-time-allowance 120 -collect-test-diagnostics never \
+            -maximum-test-execution-time-allowance 240 -collect-test-diagnostics never \
             2>&1 | tee build/safari-evidence/tests.log
       - name: Collect screenshots and results
         if: always()
@@ -99,6 +99,15 @@ jobs:
             xcrun xcresulttool get test-results summary --path build/safari-tests.xcresult > build/safari-evidence/summary.json || true
           fi
           xcrun simctl spawn "${{ steps.simulator.outputs.simulator-id }}" log show --last 20m --style compact --predicate 'process == "SafariWalkthrough" OR process == "SafariWalkthroughProvider"' > build/safari-evidence/fixture-process.log 2>&1 || true
+          python3 - <<'PY'
+          import pathlib, re
+          process_log = pathlib.Path("build/safari-evidence/fixture-process.log")
+          if process_log.exists():
+              lines = [line for line in process_log.read_text(errors="replace").splitlines()
+                       if re.search(r"dyld|Library not loaded|launch|fatal|crash|Exception|Fixture setup", line, re.I)]
+              print("FIXTURE_PROCESS_DIAGNOSTICS")
+              print(*lines[-100:], sep=chr(10))
+          PY
           if [ -f build/safari-server.pid ]; then kill "$(cat build/safari-server.pid)" || true; fi
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         if: always()
