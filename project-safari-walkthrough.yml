@@ -50,6 +50,8 @@ targets:
       - target: SafariWalkthroughProvider
       - target: BitwardenShared
       - target: BitwardenSharedMocks
+      - target: BitwardenKit/AuthenticatorBridgeKit
+      - target: BitwardenKit/BitwardenResources
       - target: BitwardenKit/AuthenticatorBridgeKitMocks
       - target: BitwardenKit/BitwardenKit
       - target: BitwardenKit/BitwardenKitMocks
@@ -101,6 +103,8 @@ targets:
     dependencies:
       - target: BitwardenShared
       - target: BitwardenSharedMocks
+      - target: BitwardenKit/AuthenticatorBridgeKit
+      - target: BitwardenKit/BitwardenResources
       - target: BitwardenKit/AuthenticatorBridgeKitMocks
       - target: BitwardenKit/BitwardenKit
       - target: BitwardenKit/BitwardenKitMocks
