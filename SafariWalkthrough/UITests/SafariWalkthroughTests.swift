@@ -184,6 +184,7 @@ final class SafariWalkthroughTests: XCTestCase {
         let field = safari.textFields["Username"]
         XCTAssertTrue(field.waitForExistence(timeout: 15))
         field.tap()
+        dismissKeyboardIntroduction()
         print("WALKTHROUGH_SAFARI_FOCUSED:", safari.debugDescription)
         let passwords = safari.buttons.matching(NSPredicate(
             format: "label CONTAINS[c] 'password' OR label == 'AutoFill'"
@@ -203,12 +204,19 @@ final class SafariWalkthroughTests: XCTestCase {
             )).firstMatch
             if provider.waitForExistence(timeout: 3) {
                 provider.tap()
+                dismissKeyboardIntroduction()
                 print("WALKTHROUGH_AFTER_PROVIDER:", safari.debugDescription)
             }
             let passwordMenu = safari.buttons.matching(NSPredicate(
                 format: "label CONTAINS[c] 'Passwords'"
             )).firstMatch
-            if !fixtureRow.exists && passwordMenu.exists { passwordMenu.tap() }
+            if !fixtureRow.exists && passwordMenu.exists {
+                passwordMenu.tap()
+                let providerAfterIntroduction = safari.buttons["Bitwarden Walkthrough"]
+                if providerAfterIntroduction.waitForExistence(timeout: 3) {
+                    providerAfterIntroduction.tap()
+                }
+            }
         }
         let pickerVisible = fixtureRow.waitForExistence(timeout: 15)
         if !pickerVisible {
@@ -218,6 +226,14 @@ final class SafariWalkthroughTests: XCTestCase {
         XCTAssertTrue(pickerVisible, "The actual Safari extension picker must be visible")
         capture("Actual Safari credential picker")
         fixtureRow.tap()
+    }
+
+    private func dismissKeyboardIntroduction() {
+        let introduction = safari.otherElements["UIContinuousPathIntroductionView"]
+        if introduction.waitForExistence(timeout: 2) {
+            let next = introduction.buttons["Continue"]
+            if next.exists { next.tap() }
+        }
     }
 
     private func surfaceElement(_ text: String, partial: Bool = false) -> XCUIElement {

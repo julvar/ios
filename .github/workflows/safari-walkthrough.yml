@@ -94,6 +94,7 @@ jobs:
           mkdir -p build/safari-evidence
           curl --silent http://127.0.0.1:8765/state > build/safari-evidence/last-fixture-state.json || true
           xcrun simctl io "${{ steps.simulator.outputs.simulator-id }}" screenshot build/safari-evidence/final-screen.png || true
+          cat build/safari-evidence/last-fixture-state.json || true
           if [ -d build/safari-tests.xcresult ]; then
             xcrun xcresulttool export attachments --path build/safari-tests.xcresult --output-path build/safari-evidence/attachments || true
             xcrun xcresulttool get test-results summary --path build/safari-tests.xcresult > build/safari-evidence/summary.json || true
@@ -101,6 +102,17 @@ jobs:
           xcrun simctl spawn "${{ steps.simulator.outputs.simulator-id }}" log show --last 20m --style compact --predicate 'process == "SafariWalkthrough" OR process == "SafariWalkthroughProvider"' > build/safari-evidence/fixture-process.log 2>&1 || true
           python3 - <<'PY'
           import pathlib, re
+          import shutil
+          crash_dest = pathlib.Path("build/safari-evidence/crash-reports")
+          crash_dest.mkdir(exist_ok=True)
+          for source in [pathlib.Path.home() / "Library/Logs/DiagnosticReports",
+                         pathlib.Path.home() / "Library/Developer/CoreSimulator/Devices" / "${{ steps.simulator.outputs.simulator-id }}" / "data/Library/Logs/CrashReporter"]:
+              if source.exists():
+                  for report in source.rglob("*SafariWalkthrough*"):
+                      if report.is_file():
+                          shutil.copy2(report, crash_dest / report.name)
+                          text = report.read_text(errors="replace")
+                          print("FIXTURE_CRASH_REPORT", report.name, text[:12000])
           process_log = pathlib.Path("build/safari-evidence/fixture-process.log")
           if process_log.exists():
               lines = [line for line in process_log.read_text(errors="replace").splitlines()

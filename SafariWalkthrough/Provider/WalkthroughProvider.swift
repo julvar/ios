@@ -131,6 +131,7 @@ final class WalkthroughProvider: ASCredentialProviderViewController {
 
     private func loadFixture(_ identifiers: [ASCredentialServiceIdentifier]) async {
         do {
+            _ = try await WalkthroughAPI.call("event", body: ["type": "provider-start"])
             let config = try await WalkthroughAPI.call("state")
             let identifier = identifiers.first?.identifier ?? "127.0.0.1"
             let uri = identifier.contains("://") ? identifier : "https://" + identifier
@@ -202,7 +203,9 @@ final class WalkthroughProvider: ASCredentialProviderViewController {
             self.coordinator = coordinator
             self.picker = picker
             self.navigation = navigation
+            _ = try await WalkthroughAPI.call("event", body: ["type": "fixture-ready"])
         } catch {
+            _ = try? await WalkthroughAPI.call("event", body: ["type": "fixture-error", "message": error.localizedDescription])
             let alert = UIAlertController(title: "Fixture setup failed", message: error.localizedDescription, preferredStyle: .alert)
             alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { _ in
                 self.extensionContext.cancelRequest(withError: error)

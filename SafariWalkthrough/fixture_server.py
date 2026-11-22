@@ -76,6 +76,9 @@ class Handler(BaseHTTPRequestHandler):
                     STATE["savedURIs"] = body["uris"]
                     STATE["events"].append({"type": "save-success"})
                     self.reply(STATE)
+            elif self.path == "/event":
+                STATE["events"].append(body)
+                self.reply(STATE)
             elif self.path == "/handoff":
                 STATE["events"].append({"type": "handoff"})
                 self.reply(STATE)
