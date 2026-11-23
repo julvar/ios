@@ -1,0 +1,283 @@
+import Foundation
+import XCTest
+
+@MainActor
+final class SafariWalkthroughTests: XCTestCase {
+    private let host = XCUIApplication()
+    private let safari = XCUIApplication(bundleIdentifier: "com.apple.mobilesafari")
+    private let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+
+    override func setUpWithError() throws {
+        continueAfterFailure = false
+    }
+
+    override func tearDownWithError() throws {
+        let screenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        screenshot.name = name
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+        let tree = XCTAttachment(string: "HOST\n" + host.debugDescription + "\nSAFARI\n" + safari.debugDescription + "\nSPRINGBOARD\n" + springboard.debugDescription)
+        tree.name = "Accessibility tree"
+        tree.lifetime = .keepAlways
+        add(tree)
+    }
+
+    func testSaveBeforeSafariFillAndNextSelectionMatches() async throws {
+        try await prepare(mode: "save")
+        try openPicker()
+        try tap("Autofill and Save")
+        try await assertFilled()
+        let state = try await api("state")
+        let events = eventTypes(state)
+        XCTAssertLessThan(try XCTUnwrap(events.firstIndex(of: "save-success")),
+                          try XCTUnwrap(events.firstIndex(of: "handoff")))
+        let uris = try XCTUnwrap(state["savedURIs"] as? [String])
+        XCTAssertEqual(uris.count, 2)
+        XCTAssertEqual(uris.first, "https://old.example.invalid")
+        XCTAssertTrue(uris.last?.contains("127.0.0.1") == true)
+        capture("Successful save and Safari fill")
+
+        // Keep the disposable vault association, but start a new empty Safari document.
+        host.activate()
+        host.buttons["open-safari"].tap()
+        try openPicker()
+        try await assertFilled() // Matching entry must fill without the new confirmation.
+        let matchedState = try await api("state")
+        XCTAssertEqual(matchedState["savedURIs"] as? [String], uris)
+    }
+
+    func testAutofillOnlyDoesNotSave() async throws {
+        try await prepare(mode: "save")
+        try openPicker()
+        try tap("Autofill Only")
+        try await assertFilled()
+        let state = try await api("state")
+        XCTAssertFalse(eventTypes(state).contains("save-start"))
+        XCTAssertEqual(state["savedURIs"] as? [String], ["https://old.example.invalid"])
+    }
+
+    func testCancelDoesNotSaveOrFill() async throws {
+        try await prepare(mode: "save")
+        try openPicker()
+        try tap("Cancel")
+        XCTAssertTrue(fixtureRow.waitForExistence(timeout: 5), "Cancel must return to the picker")
+        try tap("Cancel")
+        try await assertUntouched()
+    }
+
+    func testSaveFailureKeepsPickerOpenUntilExplicitFillOnly() async throws {
+        try await prepare(mode: "failure")
+        try openPicker()
+        try tap("Autofill and Save")
+        let error = surfaceElement("Couldn’t save", partial: true)
+        XCTAssertTrue(error.waitForExistence(timeout: 15), "Save error must remain visible")
+        capture("Save failure before explicit fill")
+        let before = try await api("state")
+        XCTAssertFalse(eventTypes(before).contains("handoff"), "No credentials returned while error is open")
+        XCTAssertEqual(before["savedURIs"] as? [String], ["https://old.example.invalid"])
+        try tap("Autofill Only")
+        try await assertFilled()
+        let afterExplicitFill = try await api("state")
+        XCTAssertEqual(eventTypes(afterExplicitFill).filter { $0 == "save-start" }.count, 1)
+    }
+
+    func testSaveFailureCancelDoesNotFill() async throws {
+        try await prepare(mode: "failure")
+        try openPicker()
+        try tap("Autofill and Save")
+        XCTAssertTrue(surfaceElement("Couldn’t save", partial: true).waitForExistence(timeout: 15))
+        try tap("Cancel")
+        XCTAssertTrue(fixtureRow.waitForExistence(timeout: 5))
+        try tap("Cancel")
+        try await assertUntouched()
+        let cancelledState = try await api("state")
+        XCTAssertTrue(eventTypes(cancelledState).contains("save-failed"))
+    }
+
+    func testReadOnlyLoginFillsWithoutSavePrompt() async throws {
+        try await prepare(mode: "readonly")
+        try openPicker()
+        try await assertFilled()
+        let readOnlyState = try await api("state")
+        XCTAssertFalse(eventTypes(readOnlyState).contains("save-start"))
+    }
+
+    private var fixtureRow: XCUIElement {
+        safari.staticTexts["Safari disposable login"]
+    }
+
+    private func prepare(mode: String) async throws {
+        _ = try await api("reset", body: ["mode": mode])
+        host.launch()
+        let hostReady = host.buttons["enable-provider"].waitForExistence(timeout: 15)
+        print("WALKTHROUGH_HOST_STATE: \(host.state.rawValue)")
+        print("WALKTHROUGH_HOST_TREE: \(host.debugDescription)")
+        XCTAssertTrue(hostReady, "Scene-backed fixture host must display its enable button")
+        host.buttons["enable-provider"].tap()
+        let allow = springboard.buttons.matching(NSPredicate(
+            format: "label CONTAINS[c] 'Turn On' OR label == 'Allow' OR label == 'Enable'"
+        )).firstMatch
+        if allow.waitForExistence(timeout: 4) { allow.tap() }
+        let hostAllow = host.buttons.matching(NSPredicate(
+            format: "label CONTAINS[c] 'Turn On' OR label == 'Allow' OR label == 'Enable'"
+        )).firstMatch
+        if hostAllow.exists { hostAllow.tap() }
+        var providerEnabled = host.staticTexts["Test provider enabled"].waitForExistence(timeout: 3)
+        if !providerEnabled {
+            providerEnabled = try enableProviderThroughSettings()
+        }
+        host.buttons["check-provider"].tap()
+        print("WALKTHROUGH_PROVIDER_STORE_STATE:", host.debugDescription)
+        XCTAssertTrue(providerEnabled, "The system must enable the disposable provider before testing Safari")
+        host.buttons["open-safari"].tap()
+        let continueButton = safari.buttons["Continue"]
+        if continueButton.waitForExistence(timeout: 2) { continueButton.tap() }
+        XCTAssertTrue(safari.textFields["Username"].waitForExistence(timeout: 20))
+    }
+
+    private func enableProviderThroughSettings() throws -> Bool {
+        host.buttons["provider-settings"].tap()
+        let settings = XCUIApplication(bundleIdentifier: "com.apple.Preferences")
+        XCTAssertTrue(settings.wait(for: .runningForeground, timeout: 15), "AutoFill Settings must open")
+        print("WALKTHROUGH_SETTINGS_TREE:", settings.debugDescription)
+        capture("System AutoFill provider settings")
+        let globalSwitch = settings.switches.matching(NSPredicate(
+            format: "label CONTAINS[c] 'AutoFill Passwords'"
+        )).firstMatch
+        if globalSwitch.exists && globalSwitch.value as? String == "0" { globalSwitch.tap() }
+        let provider = settings.switches.matching(NSPredicate(
+            format: "label CONTAINS[c] 'Walkthrough'"
+        )).firstMatch
+        if !provider.waitForExistence(timeout: 5) {
+            let row = settings.staticTexts["Bitwarden Walkthrough"]
+            if row.exists { row.tap() }
+        }
+        XCTAssertTrue(provider.waitForExistence(timeout: 5), "Disposable provider must be registered in system settings")
+        // Settings exposes a row-sized switch with a second native switch inside it.
+        // Tap the actual control instead of the row center, which can leave it unchanged.
+        let nativeSwitch = provider.switches.firstMatch
+        let toggle = nativeSwitch.exists ? nativeSwitch : provider
+        print("WALKTHROUGH_NATIVE_SWITCH_BEFORE:", String(describing: toggle.value))
+        if toggle.value as? String == "0" { toggle.tap() }
+        print("WALKTHROUGH_NATIVE_SWITCH_AFTER:", String(describing: toggle.value))
+        let consent = settings.buttons.matching(NSPredicate(
+            format: "label == 'Allow' OR label CONTAINS[c] 'Turn On' OR label == 'Enable'"
+        )).firstMatch
+        if consent.waitForExistence(timeout: 2) { consent.tap() }
+        let systemConsent = springboard.buttons.matching(NSPredicate(
+            format: "label == 'Allow' OR label CONTAINS[c] 'Turn On' OR label == 'Enable'"
+        )).firstMatch
+        if systemConsent.exists { systemConsent.tap() }
+        print("WALKTHROUGH_SETTINGS_AFTER:", settings.debugDescription)
+        let enabledExpectation = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "value == %@", "1"),
+            object: provider
+        )
+        let enabled = XCTWaiter.wait(for: [enabledExpectation], timeout: 5) == .completed
+        print("WALKTHROUGH_PROVIDER_SWITCH:", String(describing: provider.value))
+        XCTAssertTrue(enabled, "The real iOS provider switch must be on")
+        host.activate()
+        return enabled
+    }
+
+    private func openPicker() throws {
+        let field = safari.textFields["Username"]
+        XCTAssertTrue(field.waitForExistence(timeout: 15))
+        field.tap()
+        dismissKeyboardIntroduction()
+        print("WALKTHROUGH_SAFARI_FOCUSED:", safari.debugDescription)
+        let passwords = safari.buttons.matching(NSPredicate(
+            format: "label CONTAINS[c] 'password' OR label == 'AutoFill'"
+        )).firstMatch
+        if passwords.waitForExistence(timeout: 5) {
+            passwords.tap()
+            print("WALKTHROUGH_AFTER_PASSWORDS:", safari.debugDescription)
+        } else {
+            field.press(forDuration: 1.2)
+            let autofill = safari.buttons["AutoFill"]
+            XCTAssertTrue(autofill.waitForExistence(timeout: 5))
+            autofill.tap()
+        }
+        if !fixtureRow.waitForExistence(timeout: 3) {
+            let provider = safari.buttons.matching(NSPredicate(
+                format: "label CONTAINS[c] 'Walkthrough'"
+            )).firstMatch
+            if provider.waitForExistence(timeout: 3) {
+                provider.tap()
+                dismissKeyboardIntroduction()
+                print("WALKTHROUGH_AFTER_PROVIDER:", safari.debugDescription)
+            }
+            // Provider presentation is asynchronous. Wait for its real picker below;
+            // tapping the transient Passwords menu again races extension startup.
+        }
+        let pickerVisible = fixtureRow.waitForExistence(timeout: 15)
+        if !pickerVisible {
+            print("WALKTHROUGH_PICKER_FAILURE_SAFARI:", safari.debugDescription)
+            print("WALKTHROUGH_PICKER_FAILURE_SPRINGBOARD:", springboard.debugDescription)
+        }
+        XCTAssertTrue(pickerVisible, "The actual Safari extension picker must be visible")
+        capture("Actual Safari credential picker")
+        fixtureRow.tap()
+    }
+
+    private func dismissKeyboardIntroduction() {
+        let introduction = safari.otherElements["UIContinuousPathIntroductionView"]
+        if introduction.waitForExistence(timeout: 2) {
+            let next = introduction.buttons["Continue"]
+            if next.exists { next.tap() }
+        }
+    }
+
+    private func surfaceElement(_ text: String, partial: Bool = false) -> XCUIElement {
+        let predicate = NSPredicate(format: partial ? "label CONTAINS %@" : "label == %@", text)
+        return safari.descendants(matching: .any).matching(predicate).firstMatch
+    }
+
+    private func tap(_ title: String) throws {
+        let button = safari.buttons[title]
+        XCTAssertTrue(button.waitForExistence(timeout: 10), "Missing action: " + title)
+        capture(title + " action")
+        button.tap()
+    }
+
+    private func assertFilled() async throws {
+        XCTAssertTrue(safari.staticTexts["Disposable login filled"].waitForExistence(timeout: 15))
+        let state = try await api("state")
+        XCTAssertTrue(eventTypes(state).contains("handoff"))
+        let events = state["events"] as? [[String: Any]] ?? []
+        XCTAssertTrue(events.contains { $0["type"] as? String == "filled" && $0["valid"] as? Bool == true })
+    }
+
+    private func assertUntouched() async throws {
+        XCTAssertTrue(safari.staticTexts["Form empty"].waitForExistence(timeout: 10))
+        // Give the page's polling observer time to report any unintended values after dismissal.
+        try await Task.sleep(nanoseconds: 1_000_000_000)
+        let state = try await api("state")
+        XCTAssertFalse(eventTypes(state).contains("handoff"))
+        XCTAssertFalse(eventTypes(state).contains("filled"))
+        XCTAssertEqual(state["savedURIs"] as? [String], ["https://old.example.invalid"])
+    }
+
+    private func eventTypes(_ state: [String: Any]) -> [String] {
+        (state["events"] as? [[String: Any]] ?? []).compactMap { $0["type"] as? String }
+    }
+
+    private func capture(_ title: String) {
+        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        attachment.name = title
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    private func api(_ path: String, body: [String: Any]? = nil) async throws -> [String: Any] {
+        var request = URLRequest(url: URL(string: "http://127.0.0.1:8765/" + path)!)
+        if let body {
+            request.httpMethod = "POST"
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        }
+        let (data, response) = try await URLSession.shared.data(for: request)
+        XCTAssertEqual((response as? HTTPURLResponse)?.statusCode, 200)
+        return try JSONSerialization.jsonObject(with: data) as? [String: Any] ?? [:]
+    }
+}

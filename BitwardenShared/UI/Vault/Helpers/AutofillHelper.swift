@@ -27,6 +27,12 @@ class AutofillHelper {
     /// The `Coordinator` that handles navigation.
     private let coordinator: AnyCoordinator<VaultRoute, AuthAction>
 
+    /// Matches the requesting site using the account's existing URI rules.
+    private let cipherMatchingHelper: CipherMatchingHelper?
+
+    /// Prevents a second selection while a website is being saved.
+    private var isSavingWebsite = false
+
     /// The services used by this helper.
     private let services: Services
 
@@ -38,15 +44,18 @@ class AutofillHelper {
     ///   - appExtensionDelegate: A delegate used to communicate with the app extension.
     ///   - coordinator: The coordinator that handles navigation.
     ///   - services: The services used by this processor.
+    ///   - cipherMatchingHelper: URI matching for the optional save-website confirmation.
     ///
     init(
         appExtensionDelegate: AppExtensionDelegate?,
         coordinator: AnyCoordinator<VaultRoute, AuthAction>,
         services: Services,
+        cipherMatchingHelper: CipherMatchingHelper? = nil,
     ) {
         self.appExtensionDelegate = appExtensionDelegate
         self.coordinator = coordinator
         self.services = services
+        self.cipherMatchingHelper = cipherMatchingHelper
     }
 
     // MARK: Methods
@@ -55,20 +64,28 @@ class AutofillHelper {
     ///
     /// - Parameters:
     ///   - cipherView: The `CipherListView` to use for autofill.
+    ///   - offerSaveForURI: The requesting website to offer to save after user verification.
     ///   - showToast: A closure that when called will display a toast to the user.
     ///
-    func handleCipherForAutofill(cipherListView: CipherListView, showToast: @escaping (String) -> Void) async {
+    func handleCipherForAutofill(
+        cipherListView: CipherListView,
+        offerSaveForURI: String? = nil,
+        showToast: @escaping (String) -> Void,
+    ) async {
+        guard !isSavingWebsite else { return }
         do {
             if cipherListView.reprompt == .password, try await services.authRepository.hasMasterPassword() {
                 presentMasterPasswordRepromptAlert {
                     await self.handleCipherForAutofillAfterRepromptIfRequired(
                         cipherListView: cipherListView,
+                        offerSaveForURI: offerSaveForURI,
                         showToast: showToast,
                     )
                 }
             } else {
                 await handleCipherForAutofillAfterRepromptIfRequired(
                     cipherListView: cipherListView,
+                    offerSaveForURI: offerSaveForURI,
                     showToast: showToast,
                 )
             }
@@ -138,6 +155,7 @@ class AutofillHelper {
     ///
     private func handleCipherForAutofillAfterRepromptIfRequired(
         cipherListView: CipherListView,
+        offerSaveForURI: String? = nil,
         showToast: @escaping (String) -> Void,
     ) async {
         do {
@@ -160,6 +178,26 @@ class AutofillHelper {
                   let password = cipherView.login?.password, !password.isEmpty else {
                 await handleMissingValueForAutofill(cipherView: cipherView, showToast: showToast)
                 return
+            }
+
+            if let uri = offerSaveForURI,
+               let cipherMatchingHelper,
+               cipherView.edit,
+               let url = URL(string: uri),
+               ["https", "http"].contains(url.scheme?.lowercased() ?? ""),
+               let host = url.host, !host.isEmpty {
+                await cipherMatchingHelper.prepare(uri: uri)
+                if cipherMatchingHelper.doesCipherMatch(cipher: cipherListView) == .none {
+                    let accountId = try await services.stateService.getActiveAccountId()
+                    presentSaveWebsiteConfirmation(
+                        cipherListView: cipherListView,
+                        uri: uri,
+                        host: host,
+                        accountId: accountId,
+                        showToast: showToast,
+                    )
+                    return
+                }
             }
 
             await copyTotpIfNeeded(cipherView: cipherView)
@@ -195,6 +233,114 @@ class AutofillHelper {
             services.errorReporter.log(error: error)
             coordinator.showAlert(.defaultAlert(title: Localizations.anErrorHasOccurred))
         }
+    }
+
+    /// Offers to associate an unmatched website before completing the extension request.
+    private func presentSaveWebsiteConfirmation(
+        cipherListView: CipherListView,
+        uri: String,
+        host: String,
+        accountId: String,
+        showToast: @escaping (String) -> Void,
+    ) {
+        let alert = Alert(
+            title: Localizations.autofillSaveWebsiteTitle(host),
+            message: "\(cipherListView.name)\n\n\(Localizations.autofillSaveWebsiteMessage(host))",
+            preferredStyle: .alert,
+        )
+        alert.add(AlertAction(title: Localizations.autofillAndSaveWebsite, style: .default) { _ in
+            await self.saveWebsiteAndAutofill(
+                cipherListView: cipherListView,
+                uri: uri,
+                host: host,
+                accountId: accountId,
+                showToast: showToast,
+            )
+        })
+        alert.add(AlertAction(title: Localizations.autofillOnly, style: .default) { _ in
+            await self.fillForAccount(
+                cipherListView: cipherListView,
+                accountId: accountId,
+                showToast: showToast,
+            )
+        })
+        alert.add(AlertAction(title: Localizations.cancel, style: .cancel))
+        coordinator.showAlert(alert)
+    }
+
+    /// Saves a fresh copy of the selected login before returning credentials to Safari.
+    private func saveWebsiteAndAutofill(
+        cipherListView: CipherListView,
+        uri: String,
+        host: String,
+        accountId: String,
+        showToast: @escaping (String) -> Void,
+    ) async {
+        guard !isSavingWebsite else { return }
+        isSavingWebsite = true
+        coordinator.showLoadingOverlay(title: Localizations.savingAutofillWebsite)
+        defer {
+            isSavingWebsite = false
+            coordinator.hideLoadingOverlay()
+        }
+
+        do {
+            guard try await services.stateService.getActiveAccountId() == accountId,
+                  let id = cipherListView.id,
+                  let cipher = try await services.vaultRepository.fetchCipher(withId: id),
+                  cipher.edit,
+                  let login = cipher.login else {
+                throw BitwardenError.dataError("Login unavailable when saving an autofill website.")
+            }
+            if !(login.uris ?? []).contains(where: { $0.uri == uri }) {
+                let updatedLogin = BitwardenSdk.LoginView(
+                    username: login.username,
+                    password: login.password,
+                    passwordRevisionDate: login.passwordRevisionDate,
+                    uris: (login.uris ?? []) + [LoginUriView(uri: uri, match: nil, uriChecksum: nil)],
+                    totp: login.totp,
+                    autofillOnPageLoad: login.autofillOnPageLoad,
+                    fido2Credentials: login.fido2Credentials,
+                )
+                try await services.vaultRepository.updateCipher(cipher.update(login: updatedLogin))
+            }
+            coordinator.hideLoadingOverlay()
+            await fillForAccount(
+                cipherListView: cipherListView,
+                accountId: accountId,
+                showToast: showToast,
+            )
+        } catch {
+            services.errorReporter.log(error: error)
+            coordinator.hideLoadingOverlay()
+            let alert = Alert(
+                title: Localizations.autofillSaveWebsiteFailed(host),
+                message: nil,
+                preferredStyle: .alert,
+            )
+            alert.add(AlertAction(title: Localizations.autofillOnly, style: .default) { _ in
+                await self.fillForAccount(
+                    cipherListView: cipherListView,
+                    accountId: accountId,
+                    showToast: showToast,
+                )
+            })
+            alert.add(AlertAction(title: Localizations.cancel, style: .cancel))
+            coordinator.showAlert(alert)
+        }
+    }
+
+    /// Keeps a pending prompt associated with the account that opened it.
+    private func fillForAccount(
+        cipherListView: CipherListView,
+        accountId: String,
+        showToast: @escaping (String) -> Void,
+    ) async {
+        guard await (try? services.stateService.getActiveAccountId()) == accountId else { return }
+        await handleCipherForAutofillAfterRepromptIfRequired(
+            cipherListView: cipherListView,
+            showToast: showToast,
+        )
     }
 
     /// Handles the case where the username or password is missing for the cipher which prevents it

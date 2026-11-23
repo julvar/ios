@@ -29,6 +29,7 @@ class VaultAutofillListProcessor: StateProcessor<// swiftlint:disable:this type_
         & HasPasteboardService
         & HasPolicyService
         & HasSearchProcessorMediatorFactory
+        & HasSettingsService
         & HasStateService
         & HasSyncService
         & HasTOTPExpirationManagerFactory
@@ -101,6 +102,10 @@ class VaultAutofillListProcessor: StateProcessor<// swiftlint:disable:this type_
             appExtensionDelegate: appExtensionDelegate,
             coordinator: coordinator,
             services: services,
+            cipherMatchingHelper: DefaultCipherMatchingHelper(
+                settingsService: services.settingsService,
+                stateService: services.stateService,
+            ),
         )
         self.coordinator = coordinator
         self.services = services
@@ -532,7 +537,12 @@ class VaultAutofillListProcessor: StateProcessor<// swiftlint:disable:this type_
                 }
                 await handleCipherForTextAutofill(cipher: cipher)
             } else {
-                await autofillHelper.handleCipherForAutofill(cipherListView: cipher) { [weak self] toastText in
+                let canSaveWebsite = credentialProviderExtensionDelegate != nil
+                    && (autofillListMode == .passwords || autofillListMode == .combinedMultipleSections)
+                await autofillHelper.handleCipherForAutofill(
+                    cipherListView: cipher,
+                    offerSaveForURI: canSaveWebsite ? appExtensionDelegate?.uri : nil,
+                ) { [weak self] toastText in
                     self?.state.toast = Toast(title: toastText)
                 }
             }

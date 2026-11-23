@@ -69,6 +69,7 @@ extension ServiceContainer {
         // swiftlint:disable:next line_length
         serverCommunicationConfigClientSingleton: ServerCommunicationConfigClientSingleton = MockServerCommunicationConfigClientSingleton(),
         settingsRepository: SettingsRepository = MockSettingsRepository(),
+        settingsService: SettingsService = MockSettingsService(),
         sharedTimeoutService: SharedTimeoutService = MockSharedTimeoutService(),
         stateService: StateService = MockStateService(),
         storefrontService: StorefrontService = MockStorefrontService(),
@@ -157,6 +158,7 @@ extension ServiceContainer {
             serverCommunicationConfigAPIService: serverCommunicationConfigAPIService,
             serverCommunicationConfigClientSingleton: serverCommunicationConfigClientSingleton,
             settingsRepository: settingsRepository,
+            settingsService: settingsService,
             sharedTimeoutService: sharedTimeoutService,
             stateService: stateService,
             storefrontService: storefrontService,
